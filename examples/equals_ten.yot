@@ -1,0 +1,16 @@
+// External functions
+
+// Print an integer
+@!println[_];
+// Get the next int from stdin
+@!next_int[];
+
+@plus_five[a] -> a + 5;
+
+@main[] {
+    @input = next_int();
+    @equals_ten = plus_five(input) == 10;
+    println(equals_ten);
+
+    -> 0;
+}

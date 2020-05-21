@@ -1,0 +1,25 @@
+[package]
+name = "yotc"
+version = "0.1.0"
+authors = ["Andy Min <andrewkmin@gmail.com>"]
+edition = "2018"
+
+description = "LLVM frontend for yot - a toy language."
+license = "MIT"
+readme = "README.md"
+keywords = ["compiler", "llvm"]
+categories = ["command-line-utilities"]
+
+homepage = "https://github.com/akmin04/yot-lang"
+repository = "https://github.com/akmin04/yot-lang"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+llvm-sys = "90"
+libc = "0.2.70"
+
+clap = "2.33.0"
+
+log = "0.4.8"
+env_logger = "0.7.1"
