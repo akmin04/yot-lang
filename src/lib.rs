@@ -1,3 +1,7 @@
+pub mod generator;
+pub mod lexer;
+pub mod parser;
+
 use clap::{App, Arg};
 use log::LevelFilter;
 use std::path;

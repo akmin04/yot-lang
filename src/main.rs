@@ -1,19 +1,14 @@
-mod cli;
-mod generator;
-mod lexer;
-mod parser;
-
-use crate::cli::OutputFormat;
-use crate::generator::Generator;
-use crate::lexer::tokens::Token;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
 use log::{error, warn};
 use std::{fs, process};
+use yotc::generator::Generator;
+use yotc::lexer::tokens::Token;
+use yotc::lexer::Lexer;
+use yotc::parser::Parser;
+use yotc::{init_cli, init_logger, OutputFormat};
 
 pub fn main() {
-    let cli_input = cli::init_cli();
-    cli::init_logger(cli_input.verbose);
+    let cli_input = init_cli();
+    init_logger(cli_input.verbose);
 
     // Lexer
     let lexer = Lexer::from_file(&cli_input.input_path).unwrap_or_else(|e| {
