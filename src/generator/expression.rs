@@ -85,49 +85,77 @@ impl Generator {
                 r_expression,
             } => {
                 info!("Generating binary expression");
-                let l = self.gen_expression(l_expression)?;
+
                 let r = self.gen_expression(r_expression)?;
 
-                // unsafe {
-                match &op[..] {
-                    "+" => unsafe { Ok(core::LLVMBuildAdd(self.builder, l, r, llvm_str!(""))) },
-                    "-" => unsafe { Ok(core::LLVMBuildSub(self.builder, l, r, llvm_str!(""))) },
-                    "*" => unsafe { Ok(core::LLVMBuildMul(self.builder, l, r, llvm_str!(""))) },
-                    "/" => unsafe { Ok(core::LLVMBuildSDiv(self.builder, l, r, llvm_str!(""))) },
-                    "==" | "!=" | "<" | ">" | "<=" | ">=" => {
-                        let cmp = unsafe {
-                            core::LLVMBuildICmp(
-                                self.builder,
-                                match &op[..] {
-                                    "==" => LLVMIntPredicate::LLVMIntEQ,
-                                    "!=" => LLVMIntPredicate::LLVMIntNE,
-                                    "<" => LLVMIntPredicate::LLVMIntSLT,
-                                    ">" => LLVMIntPredicate::LLVMIntSGT,
-                                    "<=" => LLVMIntPredicate::LLVMIntSLE,
-                                    ">=" => LLVMIntPredicate::LLVMIntSGE,
-                                    _ => {
-                                        error!("Generation Unhandled comparison binary operation");
-                                        process::exit(1);
-                                    }
-                                },
-                                l,
-                                r,
-                                llvm_str!(""),
-                            )
-                        };
-                        // Cast i1 to i32
-                        let cmp_i32 = unsafe {
-                            core::LLVMBuildZExt(self.builder, cmp, self.i32_type(), llvm_str!(""))
-                        };
-                        Ok(cmp_i32)
-                    }
-                    "=" => unimplemented!(),
-                    _ => {
-                        error!("Generation: Misidentified binary expression");
+                if op == "=" {
+                    if let Expression::VariableReferenceExpression { name } = l_expression.as_ref()
+                    {
+                        let local_vars_immut = self.local_vars.borrow();
+                        let var = local_vars_immut.get(name).unwrap_or_else(|| {
+                            error!("Tried to assign to undefined variable `{}`", name);
+                            process::exit(1);
+                        });
+
+                        unsafe {
+                            core::LLVMBuildStore(self.builder, r, *var);
+                        }
+
+                        Ok(r)
+                    } else {
+                        error!("Expected variable reference on assignment");
                         process::exit(1);
                     }
+                } else {
+                    let l = self.gen_expression(l_expression)?;
+
+                    match &op[..] {
+                        "+" => unsafe { Ok(core::LLVMBuildAdd(self.builder, l, r, llvm_str!(""))) },
+                        "-" => unsafe { Ok(core::LLVMBuildSub(self.builder, l, r, llvm_str!(""))) },
+                        "*" => unsafe { Ok(core::LLVMBuildMul(self.builder, l, r, llvm_str!(""))) },
+                        "/" => unsafe {
+                            Ok(core::LLVMBuildSDiv(self.builder, l, r, llvm_str!("")))
+                        },
+                        "==" | "!=" | "<" | ">" | "<=" | ">=" => {
+                            let cmp = unsafe {
+                                core::LLVMBuildICmp(
+                                    self.builder,
+                                    match &op[..] {
+                                        "==" => LLVMIntPredicate::LLVMIntEQ,
+                                        "!=" => LLVMIntPredicate::LLVMIntNE,
+                                        "<" => LLVMIntPredicate::LLVMIntSLT,
+                                        ">" => LLVMIntPredicate::LLVMIntSGT,
+                                        "<=" => LLVMIntPredicate::LLVMIntSLE,
+                                        ">=" => LLVMIntPredicate::LLVMIntSGE,
+                                        _ => {
+                                            error!(
+                                                "Generation Unhandled comparison binary operation"
+                                            );
+                                            process::exit(1);
+                                        }
+                                    },
+                                    l,
+                                    r,
+                                    llvm_str!(""),
+                                )
+                            };
+                            // Cast i1 to i32
+                            let cmp_i32 = unsafe {
+                                core::LLVMBuildZExt(
+                                    self.builder,
+                                    cmp,
+                                    self.i32_type(),
+                                    llvm_str!(""),
+                                )
+                            };
+                            Ok(cmp_i32)
+                        }
+                        _ => {
+                            error!("Generation: Misidentified binary expression");
+                            process::exit(1);
+                        }
+                    }
                 }
-                // }
             }
 
             Expression::UnaryExpression { op, expression } => {

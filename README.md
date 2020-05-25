@@ -33,7 +33,7 @@ LLVM frontend for yot - a toy language.
         ```
         @a = 5;
         ```
-    * Declaration without value(variables can't be reassigned yet so there's no point in this)
+    * Declaration without value (will be assigned to trash value)
         ```
         @a;
         ```
@@ -89,7 +89,6 @@ LLVM frontend for yot - a toy language.
     * Compile and link `io.cpp` with `g++ io.cc equals_ten.o` to generate an executable
 
 # Todo
-* Variable reassignment
 * If, for, while statements
 * Support printing string literals
 * Better compiler errors

@@ -9,7 +9,10 @@
 
 @main[] {
     @input = next_int();
-    @equals_ten = plus_five(input) == 10;
+    input = 3 * plus_five(input) / 3;
+
+    @equals_ten = input - 5 == 10;
+
     println(equals_ten);
 
     -> 0;
