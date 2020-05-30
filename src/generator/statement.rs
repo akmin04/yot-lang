@@ -1,7 +1,7 @@
-use crate::Result;
 use crate::generator::Generator;
 use crate::llvm_str;
 use crate::parser::statement::Statement;
+use crate::Result;
 use llvm_sys::core;
 use log::{info, trace};
 
@@ -11,9 +11,19 @@ impl Generator {
         match statement {
             Statement::CompoundStatement { statements } => {
                 trace!("Generating compound statement");
+                self.scope_var_names.borrow_mut().push(Vec::new());
+                info!("Added new scope: #{}", self.scope_var_names.borrow().len());
                 for statement in statements {
                     self.gen_statement(statement)?;
                 }
+
+                let mut local_vars_mut = self.local_vars.borrow_mut();
+                for var in self.scope_var_names.borrow().last().unwrap() {
+                    info!("Deleting variable `{}`", var);
+                    local_vars_mut.remove(var);
+                }
+
+                self.scope_var_names.borrow_mut().pop();
                 Ok(())
             }
 
@@ -36,15 +46,25 @@ impl Generator {
 
             Statement::VariableDeclarationStatement { name, value } => {
                 trace!("Generating variable declaration statement: {}", name);
+                let mut local_vars_mut = self.local_vars.borrow_mut();
+
+                if local_vars_mut.contains_key(name) {
+                    return Err(format!("Variable `{}` already exists", name));
+                }
+
                 let var =
                     unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), llvm_str!("")) };
                 if name != "_" {
-                    info!("Adding {} to local vars", name);
-                    let mut local_vars_mut = self.local_vars.borrow_mut();
+                    info!("Adding `{}` to local vars", name);
                     local_vars_mut.insert(String::from(name), var);
-                    drop(local_vars_mut);
+                    self.scope_var_names
+                        .borrow_mut()
+                        .last_mut()
+                        .unwrap()
+                        .push(String::from(name));
                 }
 
+                drop(local_vars_mut);
                 if let Some(value) = value {
                     unsafe { core::LLVMBuildStore(self.builder, self.gen_expression(value)?, var) };
                 }
@@ -53,10 +73,7 @@ impl Generator {
 
             Statement::ExpressionStatement { expression } => {
                 trace!("Generating expression statement");
-                unsafe {
-                    let var = core::LLVMBuildAlloca(self.builder, self.i32_type(), llvm_str!(""));
-                    core::LLVMBuildStore(self.builder, self.gen_expression(expression)?, var);
-                }
+                self.gen_expression(expression)?;
                 Ok(())
             }
 

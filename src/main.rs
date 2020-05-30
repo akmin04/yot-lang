@@ -11,14 +11,14 @@ pub fn main() {
 
     // Lexer
     let lexer = Lexer::from_file(&cli_input.input_path).unwrap_or_else(|e| {
-        error!("IO Error: {}", e);
+        error!("IO: {}", e);
         process::exit(1);
     });
 
     let tokens = lexer
         .map(|t| {
             t.unwrap_or_else(|e| {
-                error!("Lexing Error: {}", e);
+                error!("Lexing: {}", e);
                 process::exit(1);
             })
         })
@@ -34,7 +34,7 @@ pub fn main() {
     let program = match parser.parse_program() {
         Ok(e) => e,
         Err(e) => {
-            error!("Parsing Error: {}", e);
+            error!("Parsing: {}", e);
             process::exit(1);
         }
     };
@@ -45,7 +45,7 @@ pub fn main() {
     // Generator
     let generator = Generator::new(program, &cli_input.input_name);
     if let Err(e) = generator.generate() {
-        error!("Code Generation Error: {}", e);
+        error!("Code Generation: {}", e);
         process::exit(1)
     };
     match cli_input.output_format {
@@ -57,7 +57,7 @@ pub fn main() {
             let object_file = format!("{}.o", cli_input.input_name);
             generator.generate_object_file(cli_input.optimization, &object_file);
             if let Err(e) = generator.generate_executable(&object_file, &cli_input.output_path) {
-                error!("Linking Error: {}", e);
+                error!("Linking: {}", e);
                 process::exit(1);
             };
             fs::remove_file(object_file).unwrap_or_else(|e| {

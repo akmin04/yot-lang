@@ -1,6 +1,6 @@
-use crate::Result;
 use crate::parser::function::Function;
 use crate::parser::Parser;
+use crate::Result;
 use log::{trace, warn};
 
 /// A yot program, a.k.a. the root of the abstract syntax tree.

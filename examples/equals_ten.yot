@@ -9,6 +9,13 @@
 
 @main[] {
     @input = next_int();
+
+    {
+        // Inner scope
+        @copy = input;
+        println(copy);
+    }
+    
     input = 3 * plus_five(input) / 3;
 
     @equals_ten = input - 5 == 10;

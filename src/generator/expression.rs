@@ -40,23 +40,16 @@ impl Generator {
                 if let Some(var) = self.local_vars.borrow().get(name) {
                     trace!("Local variable: {}", name);
                     unsafe {
-                        return Ok(core::LLVMBuildLoad2(
+                        Ok(core::LLVMBuildLoad2(
                             self.builder,
                             self.i32_type(),
                             *var,
                             llvm_str!(""),
-                        ));
+                        ))
                     }
-                } else if let Some(i) = self.fn_args.borrow().iter().position(|a| a == name) {
-                    trace!("Function param");
-                    unsafe {
-                        return Ok(core::LLVMGetParam(
-                            core::LLVMGetLastFunction(self.module),
-                            i as u32,
-                        ));
-                    }
+                } else {
+                    Err(format!("Unresolved variable reference `{}`", name))
                 }
-                Err(format!("Unresolved variable reference `{}`", name))
             }
 
             Expression::FunctionCallExpression { name, args } => {

@@ -32,8 +32,8 @@ pub struct Generator {
 
     /// LLVM variable map.
     local_vars: RefCell<HashMap<String, LLVMValueRef>>,
-    /// Arguments for the current function.
-    fn_args: RefCell<Vec<String>>,
+    /// Variables in the current scope
+    scope_var_names: RefCell<Vec<Vec<String>>>,
 }
 
 impl Generator {
@@ -52,14 +52,14 @@ impl Generator {
             module: unsafe { core::LLVMModuleCreateWithNameInContext(llvm_str!(name), context) },
             builder: unsafe { core::LLVMCreateBuilderInContext(context) },
             local_vars: RefCell::new(HashMap::new()),
-            fn_args: RefCell::new(Vec::new()),
+            scope_var_names: RefCell::new(Vec::new()),
         }
     }
 
     /// Generate the LLVM IR from the module.
     pub fn generate(&self) -> Result<()> {
         self.gen_program(&self.program)?;
-        debug!("Successfuly generated IR");
+        debug!("Successfully generated IR");
         unsafe {
             analysis::LLVMVerifyModule(
                 self.module,
@@ -67,7 +67,7 @@ impl Generator {
                 ["".as_ptr() as *mut _].as_mut_ptr(), // TODO use error message
             )
         };
-        debug!("Successfuly verified module");
+        debug!("Successfully verified module");
         Ok(())
     }
 
