@@ -5,17 +5,17 @@ mod statement;
 
 use crate::llvm_str;
 use crate::parser::program::Program;
+use crate::Result;
 use llvm_sys::analysis::LLVMVerifierFailureAction;
 use llvm_sys::prelude::{LLVMBuilderRef, LLVMContextRef, LLVMModuleRef, LLVMTypeRef, LLVMValueRef};
 use llvm_sys::target_machine::{
     LLVMCodeGenFileType, LLVMCodeGenOptLevel, LLVMCodeModel, LLVMRelocMode, LLVMTargetRef,
 };
 use llvm_sys::{analysis, core, target, target_machine};
-use log::{debug, error, info, warn};
+use log::{debug, info, trace, warn};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::process;
 use std::process::Command;
 
 /// Generates LLVM IR based on the AST.
@@ -57,11 +57,8 @@ impl Generator {
     }
 
     /// Generate the LLVM IR from the module.
-    pub fn generate(&self) {
-        if let Err(e) = self.gen_program(&self.program) {
-            error!("IR Generation error: {}", e);
-            process::exit(1);
-        };
+    pub fn generate(&self) -> Result<()> {
+        self.gen_program(&self.program)?;
         debug!("Successfuly generated IR");
         unsafe {
             analysis::LLVMVerifyModule(
@@ -71,6 +68,7 @@ impl Generator {
             )
         };
         debug!("Successfuly verified module");
+        Ok(())
     }
 
     /// Dump LLVM IR to stdout.
@@ -103,7 +101,7 @@ impl Generator {
             target::LLVM_InitializeAllAsmParsers();
             target::LLVM_InitializeAllAsmPrinters();
         }
-        debug!("Successfully initialized all LLVM targets");
+        trace!("Successfully initialized all LLVM targets");
 
         let mut target = std::mem::MaybeUninit::<LLVMTargetRef>::uninit();
         unsafe {
@@ -138,7 +136,7 @@ impl Generator {
                 LLVMCodeModel::LLVMCodeModelDefault, // TODO is this right?
             )
         };
-        debug!("Successfully created target machine");
+        trace!("Successfully created target machine");
 
         unsafe {
             target_machine::LLVMTargetMachineEmitToFile(
@@ -149,7 +147,7 @@ impl Generator {
                 ["".as_ptr() as *mut _].as_mut_ptr(), // TODO use error message
             )
         };
-        debug!("Successfully emitted to file");
+        trace!("Successfully emitted to file");
     }
 
     /// Generates an executable from the object file by calling gcc.
@@ -157,17 +155,17 @@ impl Generator {
     /// # Arguments
     /// * `object_file` - Path to the object file.
     /// * `output` - Path to the executable.
-    pub fn generate_executable(&self, object_file: &str, output: &str) {
+    pub fn generate_executable(&self, object_file: &str, output: &str) -> Result<()> {
         // TODO is there a better way to do this?
         match Command::new("gcc")
             .args(&[object_file, "-o", output])
             .output()
         {
-            Ok(_) => debug!("Successfully generated executable"),
-            Err(e) => {
-                error!("Unable to link object file:\n{}", e);
-                process::exit(1);
+            Ok(_) => {
+                debug!("Successfully generated executable");
+                Ok(())
             }
+            Err(e) => Err(format!("Unable to link object file:\n{}", e)),
         }
     }
 

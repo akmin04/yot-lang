@@ -6,21 +6,36 @@ use clap::{App, Arg};
 use log::LevelFilter;
 use std::path;
 
+pub type Result<T> = std::result::Result<T, String>;
+
+/// Output file format.
 pub enum OutputFormat {
+    /// LLVM Intermediate Representation.
     LLVM,
+    /// Unlinked object file.
     ObjectFile,
+    /// Object file linked with `gcc`.
     Executable,
 }
 
+/// CLI input configuration and parameters.
 pub struct CLIInput {
+    /// Path to `.yot` input file.
     pub input_path: String,
+    /// `input_path` file name without file extension.
     pub input_name: String,
+    /// Path to output file.
     pub output_path: String,
+    /// Format of output file.
     pub output_format: OutputFormat,
+    /// Optimization level (0-3)
     pub optimization: u32,
+    /// Whether or not raw tokens should be printed.
     pub print_tokens: bool,
+    /// Whether or not raw AST should be printed.
     pub print_ast: bool,
-    pub verbose: bool,
+    /// Whether to filter logs or not.
+    pub verbose: u32,
 }
 
 /// Initialize command line application to parse arguments.
@@ -72,9 +87,9 @@ pub fn init_cli() -> CLIInput {
         )
         .arg(
             Arg::with_name("verbose")
-                .help("Whether or not verbose logging should be displayed")
+                .help("Level of logging (0-2)")
                 .short("v")
-                .long("verbose"),
+                .multiple(true),
         )
         .get_matches();
 
@@ -109,19 +124,19 @@ pub fn init_cli() -> CLIInput {
         optimization: matches.value_of("optimization").unwrap().parse().unwrap(),
         print_tokens: matches.is_present("print tokens"),
         print_ast: matches.is_present("print AST"),
-        verbose: matches.is_present("verbose"),
+        verbose: matches.occurrences_of("verbose") as u32,
     }
 }
 
 /// Initialize logger with verbosity filter.
-pub fn init_logger(verbose: bool) {
+pub fn init_logger(verbose: u32) {
     env_logger::builder()
         .format_timestamp(None)
         .format_module_path(false)
-        .filter_level(if verbose {
-            LevelFilter::Trace
-        } else {
-            LevelFilter::Warn
+        .filter_level(match verbose {
+            0 => LevelFilter::Warn,
+            1 => LevelFilter::Debug,
+            2 | _ => LevelFilter::Trace,
         })
         .init()
 }

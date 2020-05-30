@@ -1,9 +1,10 @@
 use crate::generator::Generator;
 use crate::parser::program::Program;
+use crate::Result;
 use log::info;
 
 impl Generator {
-    pub fn gen_program(&self, program: &Program) -> Result<(), &'static str> {
+    pub fn gen_program(&self, program: &Program) -> Result<()> {
         info!("Generating program");
         for function in &program.functions {
             // Clear variables and arguments

@@ -2,7 +2,8 @@ use crate::lexer::tokens::Token;
 use crate::parser::expression::Expression;
 use crate::parser::Parser;
 use crate::peek_identifier_or_err;
-use log::{debug, info};
+use crate::Result;
+use log::{debug, trace};
 
 /// A yot statement.
 #[derive(Debug)]
@@ -53,11 +54,9 @@ pub enum Statement {
     NoOpStatement,
 }
 
-type MaybeStatement = Result<Statement, &'static str>;
-
 impl Parser {
-    pub fn parse_statement(&mut self) -> MaybeStatement {
-        info!("Parsing statement");
+    pub fn parse_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing statement");
         match self.tokens.peek() {
             Some(Token::Symbol(s)) if s == "{" => self.parse_compound_statement(),
             Some(Token::Symbol(s)) if s == "?" => self.parse_if_statement(),
@@ -68,8 +67,8 @@ impl Parser {
         }
     }
 
-    fn parse_compound_statement(&mut self) -> MaybeStatement {
-        info!("Parsing compound statement");
+    fn parse_compound_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing compound statement");
         self.tokens.next(); // Eat {
         let mut statements: Vec<Statement> = Vec::new();
         while !self.next_symbol_is("}") {
@@ -78,16 +77,16 @@ impl Parser {
         Ok(Statement::CompoundStatement { statements })
     }
 
-    fn parse_if_statement(&mut self) -> MaybeStatement {
-        info!("Parsing if statement");
+    fn parse_if_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing if statement");
         self.tokens.next(); // Eat ?
         if !self.next_symbol_is("[") {
-            return Err("Expected `[` after `?` in if statement");
+            return Err(String::from("Expected `[` after `?` in if statement"));
         }
 
         let condition = Box::new(self.parse_expression()?);
         if !self.next_symbol_is("]") {
-            return Err("Expected `]` after condition in if statement");
+            return Err(String::from("Expected `]` after condition in if statement"));
         }
         let main_statement = Box::new(self.parse_statement()?);
         let else_statement = if self.next_symbol_is(":") {
@@ -105,49 +104,49 @@ impl Parser {
         })
     }
 
-    fn parse_return_statement(&mut self) -> MaybeStatement {
-        info!("Parsing return statement");
+    fn parse_return_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing return statement");
         self.tokens.next(); // Eat ->
         let value = Box::new(self.parse_expression()?);
 
         if !self.next_symbol_is(";") {
-            return Err("Expected `;` after expression statement");
+            return Err(String::from("Expected `;` after expression statement"));
         }
 
         Ok(Statement::ReturnStatement { value })
     }
 
-    fn parse_variable_declaration_statement(&mut self) -> MaybeStatement {
-        info!("Parsing variable declaration statement");
+    fn parse_variable_declaration_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing variable declaration statement");
         self.tokens.next(); // Eat @
         let name = peek_identifier_or_err!(self);
         self.tokens.next();
 
         let value = if self.next_symbol_is("=") {
-            debug!("Found expression after");
+            trace!("Found expression after");
             Some(Box::new(self.parse_expression()?))
         } else {
-            debug!("No expression found after");
+            trace!("No expression found after");
             None
         };
 
         if !self.next_symbol_is(";") {
-            return Err("Expected `;` after expression statement");
+            return Err(String::from("Expected `;` after expression statement"));
         }
         Ok(Statement::VariableDeclarationStatement { name, value })
     }
 
-    fn parse_expression_statement(&mut self) -> MaybeStatement {
-        info!("Parsing expression statement");
+    fn parse_expression_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing expression statement");
         let expression = Box::new(self.parse_expression()?);
         if !self.next_symbol_is(";") {
-            return Err("Expected `;` after expression statement");
+            return Err(String::from("Expected `;` after expression statement"));
         }
         Ok(Statement::ExpressionStatement { expression })
     }
 
-    fn parse_no_op_statement(&mut self) -> MaybeStatement {
-        info!("Parsing no op statement");
+    fn parse_no_op_statement(&mut self) -> Result<Statement> {
+        trace!("Parsing no op statement");
         self.tokens.next();
         Ok(Statement::NoOpStatement)
     }

@@ -1,14 +1,15 @@
+use crate::Result;
 use crate::generator::Generator;
 use crate::llvm_str;
 use crate::parser::function::Function;
 use llvm_sys::analysis;
 use llvm_sys::analysis::LLVMVerifierFailureAction;
 use llvm_sys::core;
-use log::{debug, info};
+use log::{debug, trace};
 
 impl Generator {
-    pub fn gen_function(&self, function: &Function) -> Result<(), &'static str> {
-        info!("Generating function");
+    pub fn gen_function(&self, function: &Function) -> Result<()> {
+        trace!("Generating function");
 
         let args = match function {
             Function::RegularFunction {

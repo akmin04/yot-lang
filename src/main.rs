@@ -1,7 +1,6 @@
 use log::{error, warn};
 use std::{fs, process};
 use yotc::generator::Generator;
-use yotc::lexer::tokens::Token;
 use yotc::lexer::Lexer;
 use yotc::parser::Parser;
 use yotc::{init_cli, init_logger, OutputFormat};
@@ -12,17 +11,18 @@ pub fn main() {
 
     // Lexer
     let lexer = Lexer::from_file(&cli_input.input_path).unwrap_or_else(|e| {
-        error!("Lexer: {}", e);
+        error!("IO Error: {}", e);
         process::exit(1);
     });
 
-    let tokens = lexer.collect::<Vec<_>>();
-    for token in &tokens {
-        if let Token::Unknown(raw) = token {
-            error!("Lexer: unknown token `{}`", raw);
-            process::exit(1);
-        }
-    }
+    let tokens = lexer
+        .map(|t| {
+            t.unwrap_or_else(|e| {
+                error!("Lexing Error: {}", e);
+                process::exit(1);
+            })
+        })
+        .collect::<Vec<_>>();
 
     if cli_input.print_tokens {
         println!("***TOKENS***");
@@ -34,7 +34,7 @@ pub fn main() {
     let program = match parser.parse_program() {
         Ok(e) => e,
         Err(e) => {
-            error!("Parser: {}", e);
+            error!("Parsing Error: {}", e);
             process::exit(1);
         }
     };
@@ -44,7 +44,10 @@ pub fn main() {
 
     // Generator
     let generator = Generator::new(program, &cli_input.input_name);
-    generator.generate();
+    if let Err(e) = generator.generate() {
+        error!("Code Generation Error: {}", e);
+        process::exit(1)
+    };
     match cli_input.output_format {
         OutputFormat::LLVM => generator.generate_ir(&cli_input.output_path),
         OutputFormat::ObjectFile => {
@@ -53,7 +56,10 @@ pub fn main() {
         OutputFormat::Executable => {
             let object_file = format!("{}.o", cli_input.input_name);
             generator.generate_object_file(cli_input.optimization, &object_file);
-            generator.generate_executable(&object_file, &cli_input.output_path);
+            if let Err(e) = generator.generate_executable(&object_file, &cli_input.output_path) {
+                error!("Linking Error: {}", e);
+                process::exit(1);
+            };
             fs::remove_file(object_file).unwrap_or_else(|e| {
                 warn!("Unable to delete object file:\n{}", e);
             });

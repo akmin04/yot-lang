@@ -5,17 +5,12 @@
 pub enum Token {
     /// An identifier of a variable or function with its name.
     Identifier(String),
-
     /// A [`Literal`] value.
     ///
     /// [`Literal`]: enum.Literal.html
     Literal(Literal),
-
     /// A known symbol.
     Symbol(String),
-
-    /// An unknown token which will cause a lexer error.
-    Unknown(String),
 }
 
 /// A literal value token, either an integer or a string.

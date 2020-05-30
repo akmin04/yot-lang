@@ -1,33 +1,32 @@
 use crate::parser::statement::Statement;
 use crate::parser::{Parser, Token};
+use crate::Result;
 use crate::{peek_identifier_or_err, peek_symbol_or_err};
-use log::info;
+use log::trace;
 
 /// A yot function, either with a body or extern.
-///
-/// Extern functions are declared with `@!` instead of `@`.
-///
-/// # Grammar
-/// * "@" + Identifier + "[" + (Identifier + ",")... + "]" + Statement
-/// * "@!" + Identifier + "[" + (Identifier + ",")... + "]"
 #[derive(Debug)]
 pub enum Function {
+    /// A regular yot function with a body.
+    ///
+    /// # Grammar
+    /// * "@" + Identifier + "[" + (Identifier + ",")... + "]" + Statement
     RegularFunction {
         name: String,
         args: Vec<String>,
         statement: Box<Statement>,
     },
-    ExternalFunction {
-        name: String,
-        args: Vec<String>,
-    },
+
+    /// An external function.
+    ///
+    /// # Grammar
+    /// * "@!" + Identifier + "[" + (Identifier + ",")... + "]"
+    ExternalFunction { name: String, args: Vec<String> },
 }
 
-type MaybeFunction = Result<Function, &'static str>;
-
 impl Parser {
-    pub fn parse_function(&mut self) -> MaybeFunction {
-        info!("Parsing function");
+    pub fn parse_function(&mut self) -> Result<Function> {
+        trace!("Parsing function");
         match &peek_symbol_or_err!(self)[..] {
             s @ "@" | s @ "@!" => {
                 self.tokens.next();
@@ -35,7 +34,7 @@ impl Parser {
                 self.tokens.next();
 
                 if !self.next_symbol_is("[") {
-                    return Err("Expected `[` after function name");
+                    return Err(format!("Expected `[` after function `{}`", name));
                 }
 
                 let mut args: Vec<String> = Vec::new();
@@ -46,7 +45,12 @@ impl Parser {
                         match self.tokens.next() {
                             Some(Token::Symbol(s)) if s == "]" => break,
                             Some(Token::Symbol(s)) if s == "," => (),
-                            _ => return Err("Expected `]` or `,` in function arguments"),
+                            _ => {
+                                return Err(format!(
+                                    "Expected `]` or `,` after function `{}`",
+                                    name
+                                ))
+                            }
                         }
                     }
                 }
@@ -59,12 +63,14 @@ impl Parser {
                         statement,
                     })
                 } else if !self.next_symbol_is(";") {
-                    Err("Expected `;` after external function declaration")
+                    Err(format!("Expected `;` after external function `{}`", name))
                 } else {
                     Ok(Function::ExternalFunction { name, args })
                 }
             }
-            _ => Err("Expected `@` or `@!`. (Only top level functions allowed)"),
+            _ => Err(String::from(
+                "Expected `@` or `@!`. (Only top level functions allowed)",
+            )),
         }
     }
 }

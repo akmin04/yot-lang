@@ -2,27 +2,25 @@ use crate::generator::Generator;
 use crate::lexer::tokens::Literal;
 use crate::llvm_str;
 use crate::parser::expression::Expression;
+use crate::Result;
 use llvm_sys::core;
 use llvm_sys::prelude::LLVMValueRef;
 use llvm_sys::LLVMIntPredicate;
-use log::{debug, error, info};
-use std::process;
-
-type MaybeLLVMValueRef = Result<LLVMValueRef, &'static str>;
+use log::trace;
 
 impl Generator {
-    pub fn gen_expression(&self, expression: &Expression) -> MaybeLLVMValueRef {
-        info!("Generating expression");
+    pub fn gen_expression(&self, expression: &Expression) -> Result<LLVMValueRef> {
+        trace!("Generating expression");
         match expression {
             Expression::LiteralExpression { value } => {
-                info!("Generating literal expression: {:?}", value);
+                trace!("Generating literal expression: {:?}", value);
                 match value {
                     Literal::Integer(i) => unsafe {
-                        debug!("Integer literal: {}", i);
+                        trace!("Integer literal: {}", i);
                         Ok(core::LLVMConstInt(self.i32_type(), *i as u64, false as i32))
                     },
                     Literal::Str(s) => unsafe {
-                        debug!("Str literal: {}", s);
+                        trace!("Str literal: {}", s);
                         Ok(core::LLVMConstString(
                             llvm_str!(s),
                             s.len() as u32,
@@ -33,14 +31,14 @@ impl Generator {
             }
 
             Expression::ParenExpression { expression } => {
-                info!("Generating paren expression");
+                trace!("Generating paren expression");
                 self.gen_expression(expression)
             }
 
             Expression::VariableReferenceExpression { name } => {
-                info!("Generating variable reference expression: {}", name);
+                trace!("Generating variable reference expression: {}", name);
                 if let Some(var) = self.local_vars.borrow().get(name) {
-                    debug!("Local variable: {}", name);
+                    trace!("Local variable: {}", name);
                     unsafe {
                         return Ok(core::LLVMBuildLoad2(
                             self.builder,
@@ -50,7 +48,7 @@ impl Generator {
                         ));
                     }
                 } else if let Some(i) = self.fn_args.borrow().iter().position(|a| a == name) {
-                    debug!("Function param");
+                    trace!("Function param");
                     unsafe {
                         return Ok(core::LLVMGetParam(
                             core::LLVMGetLastFunction(self.module),
@@ -58,11 +56,11 @@ impl Generator {
                         ));
                     }
                 }
-                Err("Unresolved variable reference")
+                Err(format!("Unresolved variable reference `{}`", name))
             }
 
             Expression::FunctionCallExpression { name, args } => {
-                info!("Generating function call expression: {}", name);
+                trace!("Generating function call expression: {}", name);
                 let mut llvm_args: Vec<LLVMValueRef> = Vec::new();
                 for arg in args {
                     llvm_args.push(self.gen_expression(arg)?);
@@ -84,7 +82,7 @@ impl Generator {
                 l_expression,
                 r_expression,
             } => {
-                info!("Generating binary expression");
+                trace!("Generating binary expression");
 
                 let r = self.gen_expression(r_expression)?;
 
@@ -92,10 +90,15 @@ impl Generator {
                     if let Expression::VariableReferenceExpression { name } = l_expression.as_ref()
                     {
                         let local_vars_immut = self.local_vars.borrow();
-                        let var = local_vars_immut.get(name).unwrap_or_else(|| {
-                            error!("Tried to assign to undefined variable `{}`", name);
-                            process::exit(1);
-                        });
+                        let var = match local_vars_immut.get(name) {
+                            Some(v) => v,
+                            None => {
+                                return Err(format!(
+                                    "Tried to assign to undefined variable `{}`",
+                                    name
+                                ))
+                            }
+                        };
 
                         unsafe {
                             core::LLVMBuildStore(self.builder, r, *var);
@@ -103,8 +106,7 @@ impl Generator {
 
                         Ok(r)
                     } else {
-                        error!("Expected variable reference on assignment");
-                        process::exit(1);
+                        return Err(format!("Expected variable reference on assignment"));
                     }
                 } else {
                     let l = self.gen_expression(l_expression)?;
@@ -128,10 +130,10 @@ impl Generator {
                                         "<=" => LLVMIntPredicate::LLVMIntSLE,
                                         ">=" => LLVMIntPredicate::LLVMIntSGE,
                                         _ => {
-                                            error!(
-                                                "Generation Unhandled comparison binary operation"
-                                            );
-                                            process::exit(1);
+                                            return Err(format!(
+                                                "Unhandled comparison binary operation `{}`",
+                                                op
+                                            ))
                                         }
                                     },
                                     l,
@@ -151,15 +153,14 @@ impl Generator {
                             Ok(cmp_i32)
                         }
                         _ => {
-                            error!("Generation: Misidentified binary expression");
-                            process::exit(1);
+                            return Err(format!("Misidentified binary expression"));
                         }
                     }
                 }
             }
 
             Expression::UnaryExpression { op, expression } => {
-                info!("Generating unary expression");
+                trace!("Generating unary expression");
                 match &op[..] {
                     "-" => unsafe {
                         Ok(core::LLVMBuildNeg(
@@ -169,8 +170,7 @@ impl Generator {
                         ))
                     },
                     _ => {
-                        error!("Generation: Misidentified unary expression");
-                        process::exit(1);
+                        return Err(format!("Misidentified unary expression"));
                     }
                 }
             }

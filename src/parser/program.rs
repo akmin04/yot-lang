@@ -1,6 +1,7 @@
+use crate::Result;
 use crate::parser::function::Function;
 use crate::parser::Parser;
-use log::{info, warn};
+use log::{trace, warn};
 
 /// A yot program, a.k.a. the root of the abstract syntax tree.
 ///
@@ -8,14 +9,13 @@ use log::{info, warn};
 /// * Function... + EOF
 #[derive(Debug)]
 pub struct Program {
+    /// The list of functions in the program.
     pub functions: Vec<Function>,
 }
 
-type MaybeProgram = Result<Program, &'static str>;
-
 impl Parser {
-    pub fn parse_program(&mut self) -> MaybeProgram {
-        info!("Parsing program");
+    pub fn parse_program(&mut self) -> Result<Program> {
+        trace!("Parsing program");
         let mut functions: Vec<Function> = Vec::new();
 
         loop {

@@ -1,10 +1,11 @@
 pub mod tokens;
 
 use crate::lexer::tokens::*;
-use log::{debug, error, info};
+use crate::Result;
+use log::trace;
 use std::iter::Peekable;
 use std::vec::IntoIter;
-use std::{fs, io, process};
+use std::{fs, io};
 
 /// A lexical analyzer that splits the program into [`Token`]s.
 ///
@@ -15,7 +16,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    /// Creates a lexer from a program file given the path to the file.
+    /// Create a lexer from a program file given the path to the file.
     ///
     /// # Arguments
     /// * `file_path` - The path to the program file.
@@ -23,7 +24,7 @@ impl Lexer {
         Ok(Self::from_text(&fs::read_to_string(file_path)?))
     }
 
-    /// Creates a lexer given the program data as plain text.
+    /// Create a lexer given the program data as plain text.
     ///
     /// # Arguments
     /// * `text` - The raw program.
@@ -46,7 +47,7 @@ impl Lexer {
                     self.raw_data.next();
                 }
                 _ => {
-                    debug!(
+                    trace!(
                         "Stopping get_next_char_while after peeking {:?}",
                         self.raw_data.peek()
                     );
@@ -69,11 +70,11 @@ impl Lexer {
 }
 
 impl Iterator for Lexer {
-    type Item = Token;
+    type Item = Result<Token>;
 
     /// Identifies the next token, `None` if the end of the program has been reached.
-    fn next(&mut self) -> Option<Token> {
-        let token: Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        let token: Result<Token>;
         let first_char: char;
 
         // Find first non-whitespace character
@@ -88,44 +89,40 @@ impl Iterator for Lexer {
             }
         }
 
-        debug!("First char: {}", first_char);
+        trace!("First char: {}", first_char);
 
         // Identifier
         if Self::is_identifier(first_char) && !first_char.is_numeric() {
-            info!("Lexing identifier");
+            trace!("Lexing identifier");
             let mut name = first_char.to_string();
             self.get_next_char_while(&mut name, Self::is_identifier);
 
-            token = Token::Identifier(name);
+            token = Ok(Token::Identifier(name));
         }
         // Integer Literal
         else if first_char.is_numeric() {
-            info!("Lexing integer literal");
+            trace!("Lexing integer literal");
             let mut value = first_char.to_string();
             self.get_next_char_while(&mut value, |c| c.is_numeric());
 
             token = match value.parse() {
-                Ok(i) => Token::Literal(Literal::Integer(i)),
-                Err(_) => {
-                    // TODO put somehwere else
-                    error!("Integer literal {} is invalid", value);
-                    process::exit(1);
-                }
+                Ok(i) => Ok(Token::Literal(Literal::Integer(i))),
+                Err(_) => Err(format!("Integer literal {} is invalid", value)),
             }
         }
         // String Literal
         else if first_char == '"' {
-            info!("Lexing string literal");
+            trace!("Lexing string literal");
             let mut value = String::new();
 
             self.get_next_char_while(&mut value, |c| c != '"');
             self.raw_data.next(); // Eat ending "
 
-            token = Token::Literal(Literal::Str(value));
+            token = Ok(Token::Literal(Literal::Str(value)));
         }
-        // Symbol or Unknown
+        // Symbol
         else {
-            info!("Lexing symbol");
+            trace!("Lexing symbol");
             let mut raw = first_char.to_string();
             loop {
                 if let Some(peek) = self.raw_data.peek() {
@@ -145,12 +142,12 @@ impl Iterator for Lexer {
             token = match &raw[..] {
                 // Ignore commends untill newline
                 s if s == "//" => {
-                    info!("Ignoring comment");
+                    trace!("Ignoring comment");
                     self.get_next_char_while(&mut String::new(), |c| c != '\n');
                     self.next()?
                 }
-                s if VALID_SYMBOLS.contains(&s) => Token::Symbol(raw),
-                _ => Token::Unknown(raw),
+                s if VALID_SYMBOLS.contains(&s) => Ok(Token::Symbol(raw)),
+                _ => Err(format!("Unknown token: {}", raw)),
             }
         }
 

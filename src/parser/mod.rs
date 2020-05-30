@@ -53,7 +53,7 @@ macro_rules! peek_identifier_or_err {
     ($self:ident) => {
         match $self.tokens.peek() {
             Some(Token::Identifier(name)) => String::from(name),
-            _ => return Err("Expected an identifier"),
+            _ => return Err(String::from("Expected an identifier")),
         };
     };
 }
@@ -66,7 +66,7 @@ macro_rules! peek_literal_or_err {
     ($self:ident) => {
         match $self.tokens.peek() {
             Some(Token::Literal(value)) => value.clone(),
-            _ => return Err("Expected a literal"),
+            _ => return Err(String::from("Expected a literal")),
         };
     };
 }
@@ -79,7 +79,7 @@ macro_rules! peek_symbol_or_err {
     ($self:ident) => {
         match $self.tokens.peek() {
             Some(Token::Symbol(s)) => String::from(s),
-            _ => return Err("Expected a symbol"),
+            _ => return Err(String::from("Expected a symbol")),
         };
     };
 }

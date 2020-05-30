@@ -1,9 +1,9 @@
 use crate::lexer::tokens;
 use crate::lexer::tokens::{Literal, Token, UNARY_SYMBOLS};
 use crate::parser::Parser;
+use crate::Result;
 use crate::{peek_identifier_or_err, peek_literal_or_err, peek_symbol_or_err};
-use log::{error, info};
-use std::process;
+use log::trace;
 
 /// A yot expression.
 #[derive(Debug)]
@@ -59,16 +59,14 @@ pub enum Expression {
     },
 }
 
-type MaybeExpression = Result<Expression, &'static str>;
-
 impl Parser {
-    pub fn parse_expression(&mut self) -> MaybeExpression {
-        info!("Parsing expression");
+    pub fn parse_expression(&mut self) -> Result<Expression> {
+        trace!("Parsing expression");
         let l_expression = self.parse_expression_no_binary()?;
         self.parse_binary_r_expression(0, l_expression)
     }
 
-    fn parse_expression_no_binary(&mut self) -> MaybeExpression {
+    fn parse_expression_no_binary(&mut self) -> Result<Expression> {
         match self.tokens.peek() {
             Some(Token::Literal(_)) => self.parse_literal_expression(),
             Some(Token::Identifier(_)) => {
@@ -84,12 +82,12 @@ impl Parser {
             Some(Token::Symbol(s)) if UNARY_SYMBOLS.contains(&&s[..]) => {
                 self.parse_unary_expression()
             }
-            _ => Err("Unable to parse expression"),
+            _ => Err(String::from("Unable to parse expression")),
         }
     }
 
-    fn parse_literal_expression(&mut self) -> MaybeExpression {
-        info!("Parsing literal expression");
+    fn parse_literal_expression(&mut self) -> Result<Expression> {
+        trace!("Parsing literal expression");
         let expression = Ok(Expression::LiteralExpression {
             value: peek_literal_or_err!(self),
         });
@@ -97,26 +95,25 @@ impl Parser {
         expression
     }
 
-    fn parse_paren_expression(&mut self) -> MaybeExpression {
-        info!("Parsing paren expression");
+    fn parse_paren_expression(&mut self) -> Result<Expression> {
+        trace!("Parsing paren expression");
         if !self.next_symbol_is("(") {
-            error!("Parser: Mis-identified paren expression");
-            process::exit(1);
+            return Err(String::from("Misidentified paren expression"));
         }
         let expression = Box::new(self.parse_expression()?);
         if !self.next_symbol_is(")") {
-            return Err("Expected `)` after expression");
+            return Err(String::from("Expected `)` after expression"));
         }
         Ok(Expression::ParenExpression { expression })
     }
 
-    fn parse_variable_reference_expression(&mut self, name: String) -> MaybeExpression {
-        info!("Parsing variable reference expression");
+    fn parse_variable_reference_expression(&mut self, name: String) -> Result<Expression> {
+        trace!("Parsing variable reference expression");
         Ok(Expression::VariableReferenceExpression { name })
     }
 
-    fn parse_function_call_expression(&mut self, name: String) -> MaybeExpression {
-        info!("Parsing function call expression");
+    fn parse_function_call_expression(&mut self, name: String) -> Result<Expression> {
+        trace!("Parsing function call expression");
         let mut args: Vec<Expression> = Vec::new();
 
         if !self.next_symbol_is(")") {
@@ -125,7 +122,12 @@ impl Parser {
                 match self.tokens.next() {
                     Some(Token::Symbol(s)) if s == ")" => break,
                     Some(Token::Symbol(s)) if s == "," => (),
-                    _ => return Err("Expected `)` or `,` in function call"),
+                    _ => {
+                        return Err(format!(
+                            "Expected `)` or `,` after function call `{}`",
+                            name
+                        ))
+                    }
                 }
             }
         }
@@ -136,8 +138,8 @@ impl Parser {
         &mut self,
         precedence: i32,
         l_expression: Expression,
-    ) -> MaybeExpression {
-        info!("Parsing binary r expression");
+    ) -> Result<Expression> {
+        trace!("Parsing binary r expression");
         let mut l_expression = l_expression;
 
         macro_rules! peek_symbol_or_zero {
@@ -175,8 +177,8 @@ impl Parser {
         }
     }
 
-    fn parse_unary_expression(&mut self) -> MaybeExpression {
-        info!("Parsing unary expression");
+    fn parse_unary_expression(&mut self) -> Result<Expression> {
+        trace!("Parsing unary expression");
         let op = peek_symbol_or_err!(self);
         self.tokens.next();
         let expression = Box::new(self.parse_expression_no_binary()?);
