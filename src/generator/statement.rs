@@ -1,5 +1,5 @@
+use crate::c_str;
 use crate::generator::Generator;
-use crate::llvm_str;
 use crate::parser::statement::Statement;
 use crate::Result;
 use llvm_sys::core;
@@ -53,7 +53,7 @@ impl Generator {
                 }
 
                 let var =
-                    unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), llvm_str!("")) };
+                    unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), c_str!("")) };
                 if name != "_" {
                     info!("Adding `{}` to local vars", name);
                     local_vars_mut.insert(String::from(name), var);

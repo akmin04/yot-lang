@@ -136,7 +136,7 @@ pub fn init_logger(verbose: u32) {
         .filter_level(match verbose {
             0 => LevelFilter::Warn,
             1 => LevelFilter::Debug,
-            2 | _ => LevelFilter::Trace,
+            _ => LevelFilter::Trace,
         })
         .init()
 }

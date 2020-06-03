@@ -5,23 +5,28 @@ use yotc::lexer::Lexer;
 use yotc::parser::Parser;
 use yotc::{init_cli, init_logger, OutputFormat};
 
+/// Unwrap and return result, or log and exit if Err.
+macro_rules! unwrap_or_exit {
+    ($f:expr, $origin:tt) => {
+        match $f {
+            Ok(a) => a,
+            Err(e) => {
+                error!("{}: {}", $origin, e);
+                process::exit(1);
+            }
+        }
+    };
+}
+
 pub fn main() {
     let cli_input = init_cli();
     init_logger(cli_input.verbose);
 
     // Lexer
-    let lexer = Lexer::from_file(&cli_input.input_path).unwrap_or_else(|e| {
-        error!("IO: {}", e);
-        process::exit(1);
-    });
+    let lexer = unwrap_or_exit!(Lexer::from_file(&cli_input.input_path), "IO");
 
     let tokens = lexer
-        .map(|t| {
-            t.unwrap_or_else(|e| {
-                error!("Lexing: {}", e);
-                process::exit(1);
-            })
-        })
+        .map(|t| unwrap_or_exit!(t, "Lexing"))
         .collect::<Vec<_>>();
 
     if cli_input.print_tokens {
@@ -31,31 +36,32 @@ pub fn main() {
 
     // Parser
     let mut parser = Parser::new(tokens.into_iter().peekable());
-    let program = match parser.parse_program() {
-        Ok(e) => e,
-        Err(e) => {
-            error!("Parsing: {}", e);
-            process::exit(1);
-        }
-    };
+    let program = unwrap_or_exit!(parser.parse_program(), "Parsing");
     if cli_input.print_ast {
         println!("***AST***\n{:#?}", program);
     }
 
     // Generator
     let generator = Generator::new(program, &cli_input.input_name);
-    if let Err(e) = generator.generate() {
-        error!("Code Generation: {}", e);
-        process::exit(1)
-    };
+    unwrap_or_exit!(generator.generate(), "Code Generation");
+    unwrap_or_exit!(generator.verify(), "LLVM");
+
     match cli_input.output_format {
-        OutputFormat::LLVM => generator.generate_ir(&cli_input.output_path),
+        OutputFormat::LLVM => {
+            unwrap_or_exit!(generator.generate_ir(&cli_input.output_path), "LLVM");
+        }
         OutputFormat::ObjectFile => {
-            generator.generate_object_file(cli_input.optimization, &cli_input.output_path)
+            unwrap_or_exit!(
+                generator.generate_object_file(cli_input.optimization, &cli_input.output_path),
+                "LLVM"
+            );
         }
         OutputFormat::Executable => {
             let object_file = format!("{}.o", cli_input.input_name);
-            generator.generate_object_file(cli_input.optimization, &object_file);
+            unwrap_or_exit!(
+                generator.generate_object_file(cli_input.optimization, &object_file),
+                "LLVM"
+            );
             if let Err(e) = generator.generate_executable(&object_file, &cli_input.output_path) {
                 error!("Linking: {}", e);
                 process::exit(1);

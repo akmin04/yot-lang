@@ -82,7 +82,7 @@ impl Parser {
             Some(Token::Symbol(s)) if UNARY_SYMBOLS.contains(&&s[..]) => {
                 self.parse_unary_expression()
             }
-            _ => Err(String::from("Unable to parse expression")),
+            _ => Err("Unable to parse expression".to_string()),
         }
     }
 
@@ -98,11 +98,11 @@ impl Parser {
     fn parse_paren_expression(&mut self) -> Result<Expression> {
         trace!("Parsing paren expression");
         if !self.next_symbol_is("(") {
-            return Err(String::from("Misidentified paren expression"));
+            return Err("Misidentified paren expression".to_string());
         }
         let expression = Box::new(self.parse_expression()?);
         if !self.next_symbol_is(")") {
-            return Err(String::from("Expected `)` after expression"));
+            return Err("Expected `)` after expression".to_string());
         }
         Ok(Expression::ParenExpression { expression })
     }

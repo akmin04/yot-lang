@@ -68,9 +68,7 @@ impl Parser {
                     Ok(Function::ExternalFunction { name, args })
                 }
             }
-            _ => Err(String::from(
-                "Expected `@` or `@!`. (Only top level functions allowed)",
-            )),
+            _ => Err("Expected `@` or `@!`. (Only top level functions allowed)".to_string()),
         }
     }
 }

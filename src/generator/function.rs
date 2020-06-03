@@ -1,11 +1,9 @@
+use crate::c_str;
 use crate::generator::Generator;
-use crate::llvm_str;
 use crate::parser::function::Function;
 use crate::Result;
-use llvm_sys::analysis;
-use llvm_sys::analysis::LLVMVerifierFailureAction;
 use llvm_sys::core;
-use log::{debug, info, trace};
+use log::{info, trace};
 
 impl Generator {
     pub fn gen_function(&self, function: &Function) -> Result<()> {
@@ -35,7 +33,7 @@ impl Generator {
         let llvm_function = unsafe {
             core::LLVMAddFunction(
                 self.module,
-                llvm_str!(name),
+                c_str!(name),
                 core::LLVMFunctionType(
                     self.i32_type(),
                     arg_types.as_mut_ptr(),
@@ -53,7 +51,7 @@ impl Generator {
         {
             // Append empty block
             let entry = unsafe {
-                core::LLVMAppendBasicBlockInContext(self.context, llvm_function, llvm_str!("entry"))
+                core::LLVMAppendBasicBlockInContext(self.context, llvm_function, c_str!("entry"))
             };
 
             unsafe { core::LLVMPositionBuilderAtEnd(self.builder, entry) };
@@ -61,12 +59,12 @@ impl Generator {
             for (i, arg_name) in args.iter().enumerate() {
                 // Set arg name in function prototype
                 let arg = unsafe { core::LLVMGetParam(llvm_function, i as u32) };
-                unsafe { core::LLVMSetValueName2(arg, llvm_str!(arg_name), arg_name.len()) };
+                unsafe { core::LLVMSetValueName2(arg, c_str!(arg_name), arg_name.len()) };
 
                 let mut local_vars_mut = self.local_vars.borrow_mut();
 
                 let var =
-                    unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), llvm_str!("")) };
+                    unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), c_str!("")) };
                 if arg_name != "_" {
                     info!("Adding `{}` to local vars", arg_name);
                     local_vars_mut.insert(String::from(arg_name), var);
@@ -79,13 +77,6 @@ impl Generator {
             self.gen_statement(&statement)?;
         }
 
-        unsafe {
-            analysis::LLVMVerifyFunction(
-                llvm_function,
-                LLVMVerifierFailureAction::LLVMAbortProcessAction,
-            );
-        }
-        debug!("Successfully verified function `{}`", name);
         Ok(())
     }
 }

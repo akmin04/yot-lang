@@ -1,9 +1,12 @@
 # Yotc
 LLVM frontend for yot - a toy language.
 
+*Loosely based off of LLVM Kaleidoscope*
+
 # Running
 * Install LLVM 9.0
-* Run `cargo install yotc`
+* Install yotc with `cargo install yotc`
+* For automatic linking (a.k.a. default output format "executable"), `gcc` needs to be in PATH
 * Usage: `yotc (path to file)`
 * Run `yotc --help` for more options
 
@@ -52,44 +55,13 @@ LLVM frontend for yot - a toy language.
     * A program consists of just top-level functions (no global variables yet)
     * `main` function entry point
 * Example
-    * equals_ten.yot
-        ```
-        // External functions
-        @!println[_];
-        @!next_int[];
-
-        @plus_five[a] -> a + 5;
-
-        @main[] {
-            @input = next_int();
-            @equals_ten = plus_five(input) == 10;
-            println(equals_ten);
-
-            -> 0;
-        }
-        ```
-    * io.cc
-        ```
-        #include <iostream>
-
-        extern "C" {
-            int println(int a) {
-                std::cout << a << std::endl;
-                return 0;
-            }
-
-            int next_int() {
-                int input;
-                std::cin >> input;
-                return input;
-            }
-        }
-        ```
-    * Run by first generating the object file of `equals_ten.yot` with `yotc equals_ten.yot --output-format=object-file`
+    * See `examples/`
+    * Run by first generating the object file of `equals_ten.yot` with `yotc equals_ten.yot -f object-file`
     * Compile and link `io.cpp` with `g++ io.cc equals_ten.o` to generate an executable
 
 # Todo
 * If, for, while statements
+* LLVM IR optimization
 * Support printing string literals
 * Better compiler errors
     * Current errors are either vague or plain wrong and dont have any information about line number

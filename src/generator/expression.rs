@@ -1,6 +1,6 @@
+use crate::c_str;
 use crate::generator::Generator;
 use crate::lexer::tokens::Literal;
-use crate::llvm_str;
 use crate::parser::expression::Expression;
 use crate::Result;
 use llvm_sys::core;
@@ -22,7 +22,7 @@ impl Generator {
                     Literal::Str(s) => unsafe {
                         trace!("Str literal: {}", s);
                         Ok(core::LLVMConstString(
-                            llvm_str!(s),
+                            c_str!(s),
                             s.len() as u32,
                             false as i32,
                         ))
@@ -44,7 +44,7 @@ impl Generator {
                             self.builder,
                             self.i32_type(),
                             *var,
-                            llvm_str!(""),
+                            c_str!(""),
                         ))
                     }
                 } else {
@@ -60,12 +60,16 @@ impl Generator {
                 }
 
                 unsafe {
+                    let function = core::LLVMGetNamedFunction(self.module, c_str!(name));
+                    if function.is_null() {
+                        return Err(format!("Function `{}` doesn't exist", name));
+                    }
                     Ok(core::LLVMBuildCall(
                         self.builder,
-                        core::LLVMGetNamedFunction(self.module, llvm_str!(name)),
+                        function,
                         llvm_args.as_mut_ptr(),
                         args.len() as u32,
-                        llvm_str!(""),
+                        c_str!(""),
                     ))
                 }
             }
@@ -99,18 +103,16 @@ impl Generator {
 
                         Ok(r)
                     } else {
-                        return Err(format!("Expected variable reference on assignment"));
+                        Err("Expected variable reference on assignment".to_string())
                     }
                 } else {
                     let l = self.gen_expression(l_expression)?;
 
                     match &op[..] {
-                        "+" => unsafe { Ok(core::LLVMBuildAdd(self.builder, l, r, llvm_str!(""))) },
-                        "-" => unsafe { Ok(core::LLVMBuildSub(self.builder, l, r, llvm_str!(""))) },
-                        "*" => unsafe { Ok(core::LLVMBuildMul(self.builder, l, r, llvm_str!(""))) },
-                        "/" => unsafe {
-                            Ok(core::LLVMBuildSDiv(self.builder, l, r, llvm_str!("")))
-                        },
+                        "+" => unsafe { Ok(core::LLVMBuildAdd(self.builder, l, r, c_str!(""))) },
+                        "-" => unsafe { Ok(core::LLVMBuildSub(self.builder, l, r, c_str!(""))) },
+                        "*" => unsafe { Ok(core::LLVMBuildMul(self.builder, l, r, c_str!(""))) },
+                        "/" => unsafe { Ok(core::LLVMBuildSDiv(self.builder, l, r, c_str!(""))) },
                         "==" | "!=" | "<" | ">" | "<=" | ">=" => {
                             let cmp = unsafe {
                                 core::LLVMBuildICmp(
@@ -131,23 +133,16 @@ impl Generator {
                                     },
                                     l,
                                     r,
-                                    llvm_str!(""),
+                                    c_str!(""),
                                 )
                             };
                             // Cast i1 to i32
                             let cmp_i32 = unsafe {
-                                core::LLVMBuildZExt(
-                                    self.builder,
-                                    cmp,
-                                    self.i32_type(),
-                                    llvm_str!(""),
-                                )
+                                core::LLVMBuildZExt(self.builder, cmp, self.i32_type(), c_str!(""))
                             };
                             Ok(cmp_i32)
                         }
-                        _ => {
-                            return Err(format!("Misidentified binary expression"));
-                        }
+                        _ => Err("Misidentified binary expression".to_string()),
                     }
                 }
             }
@@ -159,12 +154,10 @@ impl Generator {
                         Ok(core::LLVMBuildNeg(
                             self.builder,
                             self.gen_expression(expression)?,
-                            llvm_str!(""),
+                            c_str!(""),
                         ))
                     },
-                    _ => {
-                        return Err(format!("Misidentified unary expression"));
-                    }
+                    _ => Err("Misidentified unary expression".to_string()),
                 }
             }
         }

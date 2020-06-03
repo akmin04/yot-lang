@@ -3,20 +3,22 @@ mod function;
 mod program;
 mod statement;
 
-use crate::llvm_str;
+use crate::c_str;
 use crate::parser::program::Program;
 use crate::Result;
+use libc::c_char;
 use llvm_sys::analysis::LLVMVerifierFailureAction;
 use llvm_sys::prelude::{LLVMBuilderRef, LLVMContextRef, LLVMModuleRef, LLVMTypeRef, LLVMValueRef};
 use llvm_sys::target_machine::{
-    LLVMCodeGenFileType, LLVMCodeGenOptLevel, LLVMCodeModel, LLVMRelocMode, LLVMTargetRef,
+    LLVMCodeGenFileType, LLVMCodeGenOptLevel, LLVMCodeModel, LLVMRelocMode, LLVMTarget,
 };
 use llvm_sys::{analysis, core, target, target_machine};
-use log::{debug, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::process::Command;
+use std::ptr;
 
 /// Generates LLVM IR based on the AST.
 pub struct Generator {
@@ -49,7 +51,7 @@ impl Generator {
         Generator {
             program,
             context,
-            module: unsafe { core::LLVMModuleCreateWithNameInContext(llvm_str!(name), context) },
+            module: unsafe { core::LLVMModuleCreateWithNameInContext(c_str!(name), context) },
             builder: unsafe { core::LLVMCreateBuilderInContext(context) },
             local_vars: RefCell::new(HashMap::new()),
             scope_var_names: RefCell::new(Vec::new()),
@@ -59,27 +61,43 @@ impl Generator {
     /// Generate the LLVM IR from the module.
     pub fn generate(&self) -> Result<()> {
         self.gen_program(&self.program)?;
-        debug!("Successfully generated IR");
+        debug!("Successfully generated program");
+        Ok(())
+    }
+
+    /// Verify LLVM IR.
+    pub fn verify(&self) -> Result<()> {
+        let mut error = ptr::null_mut::<c_char>();
         unsafe {
             analysis::LLVMVerifyModule(
                 self.module,
-                LLVMVerifierFailureAction::LLVMAbortProcessAction,
-                ["".as_ptr() as *mut _].as_mut_ptr(), // TODO use error message
-            )
-        };
+                LLVMVerifierFailureAction::LLVMReturnStatusAction,
+                &mut error,
+            );
+            if !error.is_null() {
+                let error = CStr::from_ptr(error).to_str().unwrap().to_string();
+                if !error.is_empty() {
+                    return Err(error);
+                }
+            }
+        }
         debug!("Successfully verified module");
         Ok(())
     }
 
     /// Dump LLVM IR to stdout.
-    pub fn generate_ir(&self, output: &str) {
+    pub fn generate_ir(&self, output: &str) -> Result<()> {
+        let mut error = ptr::null_mut::<c_char>();
         unsafe {
-            core::LLVMPrintModuleToFile(
-                self.module,
-                llvm_str!(output),
-                ["".as_ptr() as *mut _].as_mut_ptr(),
-            );
+            core::LLVMPrintModuleToFile(self.module, c_str!(output), &mut error);
+            if !error.is_null() {
+                let error = CStr::from_ptr(error).to_str().unwrap().to_string();
+                if !error.is_empty() {
+                    return Err(error);
+                }
+            }
         }
+        Ok(())
     }
 
     /// Generate an object file from the LLVM IR.
@@ -87,7 +105,7 @@ impl Generator {
     /// # Arguments
     /// * `optimization` - Optimization level (0-3).
     /// * `output` - Output file path.
-    pub fn generate_object_file(&self, optimization: u32, output: &str) {
+    pub fn generate_object_file(&self, optimization: u32, output: &str) -> Result<()> {
         let target_triple = unsafe { target_machine::LLVMGetDefaultTargetTriple() };
 
         info!("Target: {}", unsafe {
@@ -103,14 +121,16 @@ impl Generator {
         }
         trace!("Successfully initialized all LLVM targets");
 
-        let mut target = std::mem::MaybeUninit::<LLVMTargetRef>::uninit();
+        let mut target = ptr::null_mut::<LLVMTarget>();
+        let mut error = ptr::null_mut::<c_char>();
         unsafe {
-            target_machine::LLVMGetTargetFromTriple(
-                target_triple,
-                target.as_mut_ptr(),
-                ["".as_ptr() as *mut _].as_mut_ptr(),
-            );
-            target.assume_init();
+            target_machine::LLVMGetTargetFromTriple(target_triple, &mut target, &mut error);
+            if !error.is_null() {
+                let error = CStr::from_ptr(error).to_str().unwrap().to_string();
+                if !error.is_empty() {
+                    return Err(error);
+                }
+            }
         }
 
         let optimization_level = match optimization {
@@ -127,10 +147,10 @@ impl Generator {
 
         let target_machine = unsafe {
             target_machine::LLVMCreateTargetMachine(
-                *target.as_ptr(),
+                target,
                 target_triple,
-                llvm_str!(""),
-                llvm_str!(""),
+                c_str!(""),
+                c_str!(""),
                 optimization_level,
                 LLVMRelocMode::LLVMRelocDefault, // TODO is this right?
                 LLVMCodeModel::LLVMCodeModelDefault, // TODO is this right?
@@ -138,16 +158,22 @@ impl Generator {
         };
         trace!("Successfully created target machine");
 
+        let mut target = ptr::null_mut::<c_char>();
         unsafe {
             target_machine::LLVMTargetMachineEmitToFile(
                 target_machine,
                 self.module,
-                llvm_str!(output) as *mut _,
+                c_str!(output) as *mut _,
                 LLVMCodeGenFileType::LLVMObjectFile,
-                ["".as_ptr() as *mut _].as_mut_ptr(), // TODO use error message
-            )
+                &mut target,
+            );
+            if !target.is_null() {
+                let error = CStr::from_ptr(error).to_str().unwrap();
+                error!("{}", error);
+            }
         };
         trace!("Successfully emitted to file");
+        Ok(())
     }
 
     /// Generates an executable from the object file by calling gcc.
@@ -162,7 +188,7 @@ impl Generator {
             .output()
         {
             Ok(_) => {
-                debug!("Successfully generated executable");
+                debug!("Successfully generated executable: {}", output);
                 Ok(())
             }
             Err(e) => Err(format!("Unable to link object file:\n{}", e)),
@@ -187,9 +213,9 @@ impl Drop for Generator {
     }
 }
 
-/// Convert a `&str` into `*const ::libc::c_char`
+/// Convert a `&str` into `*const libc::c_char`
 #[macro_export]
-macro_rules! llvm_str {
+macro_rules! c_str {
     ($s:expr) => {
         format!("{}\0", $s).as_ptr() as *const i8
     };

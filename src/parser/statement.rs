@@ -81,12 +81,12 @@ impl Parser {
         trace!("Parsing if statement");
         self.tokens.next(); // Eat ?
         if !self.next_symbol_is("[") {
-            return Err(String::from("Expected `[` after `?` in if statement"));
+            return Err("Expected `[` after `?` in if statement".to_string());
         }
 
         let condition = Box::new(self.parse_expression()?);
         if !self.next_symbol_is("]") {
-            return Err(String::from("Expected `]` after condition in if statement"));
+            return Err("Expected `]` after condition in if statement".to_string());
         }
         let main_statement = Box::new(self.parse_statement()?);
         let else_statement = if self.next_symbol_is(":") {
@@ -110,7 +110,7 @@ impl Parser {
         let value = Box::new(self.parse_expression()?);
 
         if !self.next_symbol_is(";") {
-            return Err(String::from("Expected `;` after expression statement"));
+            return Err("Expected `;` after expression statement".to_string());
         }
 
         Ok(Statement::ReturnStatement { value })
@@ -131,7 +131,7 @@ impl Parser {
         };
 
         if !self.next_symbol_is(";") {
-            return Err(String::from("Expected `;` after expression statement"));
+            return Err("Expected `;` after expression statement".to_string());
         }
         Ok(Statement::VariableDeclarationStatement { name, value })
     }
@@ -140,7 +140,7 @@ impl Parser {
         trace!("Parsing expression statement");
         let expression = Box::new(self.parse_expression()?);
         if !self.next_symbol_is(";") {
-            return Err(String::from("Expected `;` after expression statement"));
+            return Err("Expected `;` after expression statement".to_string());
         }
         Ok(Statement::ExpressionStatement { expression })
     }
