@@ -21,7 +21,7 @@ pub enum Statement {
     /// * "?" + "[" + Expression + "]" + Statement + ":" + Statement
     IfStatement {
         condition: Box<Expression>,
-        main_statement: Box<Statement>,
+        then_statement: Box<Statement>,
         else_statement: Option<Box<Statement>>,
     },
 
@@ -88,7 +88,7 @@ impl Parser {
         if !self.next_symbol_is("]") {
             return Err("Expected `]` after condition in if statement".to_string());
         }
-        let main_statement = Box::new(self.parse_statement()?);
+        let then_statement = Box::new(self.parse_statement()?);
         let else_statement = if self.next_symbol_is(":") {
             debug!("Else statement found");
             Some(Box::new(self.parse_statement()?))
@@ -99,7 +99,7 @@ impl Parser {
 
         Ok(Statement::IfStatement {
             condition,
-            main_statement,
+            then_statement,
             else_statement,
         })
     }
@@ -110,7 +110,7 @@ impl Parser {
         let value = Box::new(self.parse_expression()?);
 
         if !self.next_symbol_is(";") {
-            return Err("Expected `;` after expression statement".to_string());
+            return Err("Expected `;` after return statement".to_string());
         }
 
         Ok(Statement::ReturnStatement { value })
@@ -131,7 +131,7 @@ impl Parser {
         };
 
         if !self.next_symbol_is(";") {
-            return Err("Expected `;` after expression statement".to_string());
+            return Err("Expected `;` after variable declaration statement".to_string());
         }
         Ok(Statement::VariableDeclarationStatement { name, value })
     }

@@ -6,7 +6,7 @@ use llvm_sys::core;
 use log::{info, trace};
 
 impl Generator {
-    pub fn gen_statement(&self, statement: &Statement) -> Result<()> {
+    pub unsafe fn gen_statement(&self, statement: &Statement) -> Result<()> {
         trace!("Generating statement");
         match statement {
             Statement::CompoundStatement { statements } => {
@@ -27,20 +27,14 @@ impl Generator {
                 Ok(())
             }
 
-            Statement::IfStatement {
-                condition: _,
-                main_statement: _,
-                else_statement: _,
-            } => {
+            Statement::IfStatement { .. } => {
                 trace!("Generating if statement");
                 unimplemented!()
             }
 
             Statement::ReturnStatement { value } => {
                 trace!("Generating return statement");
-                unsafe {
-                    core::LLVMBuildRet(self.builder, self.gen_expression(value)?);
-                }
+                core::LLVMBuildRet(self.builder, self.gen_expression(value)?);
                 Ok(())
             }
 
@@ -52,8 +46,7 @@ impl Generator {
                     return Err(format!("Variable `{}` already exists", name));
                 }
 
-                let var =
-                    unsafe { core::LLVMBuildAlloca(self.builder, self.i32_type(), c_str!("")) };
+                let var = core::LLVMBuildAlloca(self.builder, self.i32_type(), c_str!(""));
                 if name != "_" {
                     info!("Adding `{}` to local vars", name);
                     local_vars_mut.insert(String::from(name), var);
@@ -66,7 +59,7 @@ impl Generator {
 
                 drop(local_vars_mut);
                 if let Some(value) = value {
-                    unsafe { core::LLVMBuildStore(self.builder, self.gen_expression(value)?, var) };
+                    core::LLVMBuildStore(self.builder, self.gen_expression(value)?, var);
                 }
                 Ok(())
             }

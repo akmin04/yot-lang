@@ -65,7 +65,7 @@ impl Lexer {
     /// # Arguments
     /// * `c` - The character to check.
     fn is_identifier(c: char) -> bool {
-        c.is_alphanumeric() || c == '_'
+        c.is_ascii_alphanumeric() || c == '_'
     }
 }
 
@@ -140,7 +140,7 @@ impl Iterator for Lexer {
             }
 
             token = match &raw[..] {
-                // Ignore commends untill newline
+                // Ignore comments until newline
                 s if s == "//" => {
                     trace!("Ignoring comment");
                     self.get_next_char_while(&mut String::new(), |c| c != '\n');

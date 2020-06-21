@@ -9,24 +9,24 @@ use llvm_sys::LLVMIntPredicate;
 use log::trace;
 
 impl Generator {
-    pub fn gen_expression(&self, expression: &Expression) -> Result<LLVMValueRef> {
+    pub unsafe fn gen_expression(&self, expression: &Expression) -> Result<LLVMValueRef> {
         trace!("Generating expression");
         match expression {
             Expression::LiteralExpression { value } => {
                 trace!("Generating literal expression: {:?}", value);
                 match value {
-                    Literal::Integer(i) => unsafe {
+                    Literal::Integer(i) => {
                         trace!("Integer literal: {}", i);
                         Ok(core::LLVMConstInt(self.i32_type(), *i as u64, false as i32))
-                    },
-                    Literal::Str(s) => unsafe {
+                    }
+                    Literal::Str(s) => {
                         trace!("Str literal: {}", s);
                         Ok(core::LLVMConstString(
                             c_str!(s),
                             s.len() as u32,
                             false as i32,
                         ))
-                    },
+                    }
                 }
             }
 
@@ -39,14 +39,12 @@ impl Generator {
                 trace!("Generating variable reference expression: {}", name);
                 if let Some(var) = self.local_vars.borrow().get(name) {
                     trace!("Local variable: {}", name);
-                    unsafe {
-                        Ok(core::LLVMBuildLoad2(
-                            self.builder,
-                            self.i32_type(),
-                            *var,
-                            c_str!(""),
-                        ))
-                    }
+                    Ok(core::LLVMBuildLoad2(
+                        self.builder,
+                        self.i32_type(),
+                        *var,
+                        c_str!(""),
+                    ))
                 } else {
                     Err(format!("Unresolved variable reference `{}`", name))
                 }
@@ -59,19 +57,17 @@ impl Generator {
                     llvm_args.push(self.gen_expression(arg)?);
                 }
 
-                unsafe {
-                    let function = core::LLVMGetNamedFunction(self.module, c_str!(name));
-                    if function.is_null() {
-                        return Err(format!("Function `{}` doesn't exist", name));
-                    }
-                    Ok(core::LLVMBuildCall(
-                        self.builder,
-                        function,
-                        llvm_args.as_mut_ptr(),
-                        args.len() as u32,
-                        c_str!(""),
-                    ))
+                let function = core::LLVMGetNamedFunction(self.module, c_str!(name));
+                if function.is_null() {
+                    return Err(format!("Function `{}` doesn't exist", name));
                 }
+                Ok(core::LLVMBuildCall(
+                    self.builder,
+                    function,
+                    llvm_args.as_mut_ptr(),
+                    args.len() as u32,
+                    c_str!(""),
+                ))
             }
 
             Expression::BinaryExpression {
@@ -97,9 +93,7 @@ impl Generator {
                             }
                         };
 
-                        unsafe {
-                            core::LLVMBuildStore(self.builder, r, *var);
-                        }
+                        core::LLVMBuildStore(self.builder, r, *var);
 
                         Ok(r)
                     } else {
@@ -109,12 +103,12 @@ impl Generator {
                     let l = self.gen_expression(l_expression)?;
 
                     match &op[..] {
-                        "+" => unsafe { Ok(core::LLVMBuildAdd(self.builder, l, r, c_str!(""))) },
-                        "-" => unsafe { Ok(core::LLVMBuildSub(self.builder, l, r, c_str!(""))) },
-                        "*" => unsafe { Ok(core::LLVMBuildMul(self.builder, l, r, c_str!(""))) },
-                        "/" => unsafe { Ok(core::LLVMBuildSDiv(self.builder, l, r, c_str!(""))) },
+                        "+" => Ok(core::LLVMBuildAdd(self.builder, l, r, c_str!(""))),
+                        "-" => Ok(core::LLVMBuildSub(self.builder, l, r, c_str!(""))),
+                        "*" => Ok(core::LLVMBuildMul(self.builder, l, r, c_str!(""))),
+                        "/" => Ok(core::LLVMBuildSDiv(self.builder, l, r, c_str!(""))),
                         "==" | "!=" | "<" | ">" | "<=" | ">=" => {
-                            let cmp = unsafe {
+                            let cmp = {
                                 core::LLVMBuildICmp(
                                     self.builder,
                                     match &op[..] {
@@ -137,7 +131,7 @@ impl Generator {
                                 )
                             };
                             // Cast i1 to i32
-                            let cmp_i32 = unsafe {
+                            let cmp_i32 = {
                                 core::LLVMBuildZExt(self.builder, cmp, self.i32_type(), c_str!(""))
                             };
                             Ok(cmp_i32)
@@ -150,13 +144,11 @@ impl Generator {
             Expression::UnaryExpression { op, expression } => {
                 trace!("Generating unary expression");
                 match &op[..] {
-                    "-" => unsafe {
-                        Ok(core::LLVMBuildNeg(
-                            self.builder,
-                            self.gen_expression(expression)?,
-                            c_str!(""),
-                        ))
-                    },
+                    "-" => Ok(core::LLVMBuildNeg(
+                        self.builder,
+                        self.gen_expression(expression)?,
+                        c_str!(""),
+                    )),
                     _ => Err("Misidentified unary expression".to_string()),
                 }
             }

@@ -1,6 +1,8 @@
-/target
-/.vscode
+target/
+.vscode/
 
-**/*.out
-**/*.o
-**/*.ll
+*.out
+*.o
+*.ll
+
+.DS_Store
